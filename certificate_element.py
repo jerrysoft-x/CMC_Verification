@@ -1,315 +1,189 @@
-from typing import Union
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict
+
+import pdfplumber
 
 
+@dataclass
 class CertificateElement:
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, name, value):
-        self.table_index = table_index
-        self.x_coordinate = x_coordinate
-        self.y_coordinate = y_coordinate
-        self.name = name
-        self.value = value
-
-    def __repr__(self):
-        return (
-            f"{self.name}: {self.value} [table_index: {self.table_index}, x_coordinate: {self.x_coordinate} , "
-            f"y_coordinate: {self.y_coordinate}]"
-        )
+    table_index: Optional[int]
+    x_coordinate: Optional[int]
+    y_coordinate: Optional[int]
+    value: str
 
 
-class SteelPlant(CertificateElement):
-
-    def __init__(self, value):
-        super(SteelPlant, self).__init__(
-            table_index=None,
-            x_coordinate=None,
-            y_coordinate=None,
-            name='Steel Plant',
-            value=value)
-
-    def __repr__(self):
-        return f"{self.name}: {self.value}"
+@dataclass
+class CertificateElementInPlate(CertificateElement):
+    index: Optional[int]
 
 
-class Specification(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, value):
-        super(Specification, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='Specification',
-            value=value
-        )
-
-
-class Thickness(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, value):
-        super(Thickness, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='Thickness',
-            value=value
-        )
-        self.valid_flag = True
-        self.message = None
+@dataclass
+class CertificateElementToVerify(CertificateElementInPlate):
+    valid_flag: bool
+    message: Optional[str]
 
     def is_valid(self):
-        if self.valid_flag:
-            return True
+        return self.valid_flag
+
+
+@dataclass
+class Specification(CertificateElementToVerify):
+    pass
+
+
+@dataclass
+class SerialNumbers(CertificateElement):
+    value: List[int]
+
+    def __len__(self):
+        return len(self.value)
+
+    def __getitem__(self, key):
+        return self.value[key]
+
+
+@dataclass
+class ChemicalElementName(CertificateElement):
+    row_index: int
+    precision: int
+
+
+@dataclass
+class DeliveryCondition(CertificateElementToVerify):
+    pass
+
+
+@dataclass
+class Mass(CertificateElementInPlate):
+    value: int
+
+
+@dataclass
+class PositionDirectionImpact(CertificateElementInPlate):
+    pass
+
+
+@dataclass
+class Thickness(CertificateElementToVerify):
+    value: float
+
+
+@dataclass
+class ChemicalElementValue(CertificateElementToVerify):
+    value: Optional[int]
+    element: str
+    precision: Optional[int]
+    calculated_value: Optional[float] = field(init=False)
+
+    def __post_init__(self):
+        if self.value is None or self.precision is None:
+            self.calculated_value = None
         else:
-            return False
+            self.calculated_value = round(self.value * (10 ** -self.precision), self.precision)
 
-
-class SerialNumber(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, value):
-        super(SerialNumber, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='SerialNumber',
-            value=value
-        )
-        self.length = len(value)
-
-    def __repr__(self):
+    def __str__(self):
         return (
-            f"{self.name}: length={self.length} sequence={self.value} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}]"
+            f"{self.element}(value={self.value}, precision={self.precision}, calculated_value={self.calculated_value})"
         )
 
 
-class ChemicalElement(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, row_index: int, value, precision: int):
-        super(ChemicalElement, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='ChemicalElementName',
-            value=value
-        )
-        self.row_index=row_index
-        self.precision = precision
-
-    def __repr__(self):
-        return (
-            f"{self.name}: {self.value} precision: {self.precision} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}]"
-        )
+@dataclass
+class YieldStrength(CertificateElementToVerify):
+    value: int
 
 
-class ChemicalElementValue(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, value, index, element: str, precision):
-        super(ChemicalElementValue, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='ChemicalElementValue',
-            value=value
-        )
-        self.index = index
-        self.element = element
-        self.precision = precision
-        self.valid_flag = True
-        self.message = None
-
-    def __repr__(self):
-        return (
-            f"value: {self.value} precision: {self.precision} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}, index: {self.index}] "
-            f"[valid_flag: {self.valid_flag}, message: {self.message}]"
-        )
-
-    def calculated_value(self):
-        return round(self.value * (10 ** -self.precision), self.precision)
-
-    def is_valid(self):
-        if self.valid_flag:
-            return True
-        else:
-            return False
+@dataclass
+class TensileStrength(CertificateElementToVerify):
+    value: int
 
 
-class DeliveryCondition(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, index, value):
-        super(DeliveryCondition, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='DeliveryCondition',
-            value=value
-        )
-        self.index = index
-
-    def __repr__(self):
-        return (
-            f"{self.name}: {self.value} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}, index: {self.index}]"
-        )
+@dataclass
+class Elongation(CertificateElementToVerify):
+    value: int
 
 
-class YieldStrength(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, index, value):
-        super(YieldStrength, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='YieldStrength',
-            value=value
-        )
-        self.index = index
-        self.valid_flag = True,
-        self.message = None
-
-    def __repr__(self):
-        return (
-            f"{self.name}: {self.value} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}, index: {self.index}] "
-            f"[valid_flag: {self.valid_flag}, message: {self.message}]"
-        )
+@dataclass
+class Temperature(CertificateElementToVerify):
+    value: int
 
 
-class TensileStrength(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, index, value):
-        super(TensileStrength, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='TensileStrength',
-            value=value
-        )
-        self.index = index
-        self.valid_flag = True,
-        self.message = None
-
-    def __repr__(self):
-        return (
-            f"{self.name}: {self.value} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}, index: {self.index}] "
-            f"[valid_flag: {self.valid_flag}, message: {self.message}]"
-        )
-
-
-class Elongation(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, index, value):
-        super(Elongation, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='Elongation',
-            value=value
-        )
-        self.index = index
-        self.valid_flag = True,
-        self.message = None
-
-    def __repr__(self):
-        return (
-            f"{self.name}: {self.value} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}, index: {self.index}] "
-            f"[valid_flag: {self.valid_flag}, message: {self.message}]"
-        )
-
-
-class PositionDirectionImpact(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, index, value):
-        super(PositionDirectionImpact, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='Position Direction of Impact Test',
-            value=value
-        )
-        self.index = index
-
-    def __repr__(self):
-        return (
-            f"{self.name}: {self.value} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}, index: {self.index}] "
-        )
-
-
-class Temperature(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, index, value):
-        super(Temperature, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='Temperature',
-            value=value
-        )
-        self.index = index
-        self.valid_flag = True,
-        self.message = None
-
-    def __repr__(self):
-        return (
-            f"{self.name}: {self.value} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}, index: {self.index}] "
-            f"[valid_flag: {self.valid_flag}, message: {self.message}]"
-        )
-
-
-class ImpactEnergy(CertificateElement):
-
-    def __init__(self, table_index, x_coordinate, y_coordinate, index, test_number, value):
-        super(ImpactEnergy, self).__init__(
-            table_index=table_index,
-            x_coordinate=x_coordinate,
-            y_coordinate=y_coordinate,
-            name='Impact Energy',
-            value=value
-        )
-        self.index=index
-        self.test_number = test_number
-        self.valid_flag = True
-        self.message = None
-
-    def __repr__(self):
-        return (
-            f"{self.name}: test_number={self.test_number}, value={self.value} [table_index: {self.table_index}, "
-            f"x_coordinate: {self.x_coordinate} , y_coordinate: {self.y_coordinate}, index: {self.index}] "
-            f"[valid_flag: {self.valid_flag}, message: {self.message}]"
-        )
+@dataclass
+class ImpactEnergy(CertificateElementToVerify):
+    value: int
+    test_number: str
 
 
 class SteelPlate:
 
     def __init__(self, serial_number: int):
-        self.serial_number = serial_number
-        self.chemical_compositions = dict()
-        self.yield_strength = None
-        self.tensile_strength = None
-        self.elongation = None
-        self.position_direction_impact: Union[PositionDirectionImpact, None] = None
-        self.temperature = None
-        self.impact_energy_list = []
-        self.delivery_condition: Union[DeliveryCondition, None] = None
+        self.serial_number: int = serial_number
+        self.mass: Optional[Mass] = None
+        self.chemical_compositions: Dict[str, ChemicalElementValue] = dict()
+        self.yield_strength: Optional[YieldStrength] = None
+        self.tensile_strength: Optional[TensileStrength] = None
+        self.elongation: Optional[Elongation] = None
+        self.position_direction_impact: Optional[PositionDirectionImpact] = None
+        self.temperature: Optional[Temperature] = None
+        self.impact_energy_list: List[ImpactEnergy] = []
+        self.delivery_condition: Optional[DeliveryCondition] = None
 
-    def __repr__(self):
-        chemical_repr = '\n\t'.join(
-            ['chemical element: ' + element + ' ' + str(self.chemical_compositions[element]) for element in
+    def __str__(self):
+        chemical_str = '\n\t\t\t'.join(
+            [str(self.chemical_compositions[element]) for element in
              self.chemical_compositions])
-        impact_energy_repr = '\n'.join([str(impact_energy) for impact_energy in self.impact_energy_list])
+        position_direction_str = \
+            'None' if self.position_direction_impact is None else self.position_direction_impact.value
+        temperature_str = 'None' if self.temperature is None else self.temperature.value
+        impact_energy_str = ', '.join(
+            ['None' if impact_energy is None else f"{impact_energy.test_number}: {str(impact_energy.value)}" for
+             impact_energy in self.impact_energy_list])
         return (
-            f"No. {self.serial_number}\n"
-            f"{self.delivery_condition}\n"
-            f"Chemical composition: \n\t{chemical_repr}\n"
-            f"{self.yield_strength}\n"
-            f"{self.tensile_strength}\n"
-            f"{self.elongation}\n"
-            f"{self.position_direction_impact}\n"
-            f"{self.temperature}\n"
-            f"{impact_energy_repr}\n\n"
+            # f"\tSteel Plate:\n"
+            f"\t\tSerial Number: {self.serial_number}\n"
+            f"\t\tMass: {self.mass.value}\n"
+            f"\t\tChemical Composition:\n"
+            f"\t\t\t{chemical_str}\n"
+            f"\t\tYield Strength: {self.yield_strength.value}\n"
+            f"\t\tTensile Strength: {self.tensile_strength.value}\n"
+            f"\t\tElongation: {self.elongation.value}\n"
+            f"\t\tPosition Direction of Impact Test: {position_direction_str}\n"
+            f"\t\tTemperature: {temperature_str}\n"
+            f"\t\tAbsorbed Energy: {impact_energy_str}\n"
+            f"\t\tDelivery Condition: {self.delivery_condition.value}\n"
         )
+
+
+class PDFFile:
+
+    def __init__(self, pdf_path: str):
+        self.pdf_path = pdf_path
+
+    def __enter__(self):
+        self.pdf = pdfplumber.open(self.pdf_path)
+        self.page = self.pdf.pages[0]  # Always has only one page
+        self.tables = self.page.extract_tables()
+        self.content = self.page.extract_text()
+        self.steel_plant = self.extract_steel_plant()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.pdf:
+            self.pdf.close()
+
+    def extract_steel_plant(self):
+        if "No.885 Fujin ROAD, BAOSHAN DISTRICT".replace(" ", "").upper() in self.content.replace(" ", "").upper():
+            return 'BAOSHAN IRON & STEEL CO., LTD.'
+        else:
+            raise ValueError(
+                f"The steel plant name could not be recognized for the given PDF file {self.pdf_path}."
+            )
+
+
+# @dataclass
+# class Certificate:
+#     steel_plant: str
+#     specification: Specification
+#     thickness: Thickness
+#     serial_number: SerialNumbers
+#     steel_plate: SteelPlate
+#     chemical_elements: List[ChemicalElementName]

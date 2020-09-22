@@ -1,7 +1,66 @@
-from typing import List, Tuple, Union
+from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
+from typing import List, Tuple, Union, Dict
 from enum import Enum, unique
 
-from certificate_verification import Direction
+from certificate_element import Specification, Thickness, SerialNumbers, SteelPlate, ChemicalElementName, \
+    CertificateElementToVerify
+
+
+class SingletonMeta(type):
+
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            instance = super().__call__(*args, **kwargs)
+            cls._instances[cls] = instance
+        return cls._instances[cls]
+
+
+class SingletonABCMeta(ABCMeta):
+
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            instance = super().__call__(*args, **kwargs)
+            cls._instances[cls] = instance
+        return cls._instances[cls]
+
+
+@dataclass
+class Certificate(metaclass=ABCMeta):
+    steel_plant: str
+    specification: Specification
+    thickness: Thickness
+    serial_numbers: SerialNumbers
+    steel_plates: List[SteelPlate]
+    chemical_elements: Dict[str, ChemicalElementName]
+
+    def __str__(self):
+        chemical_element_str = {element: self.chemical_elements[element].precision for element in
+                                self.chemical_elements}
+        steel_plates_str = '\n'.join([str(steel_plate) for steel_plate in self.steel_plates])
+        return (
+            f"BaoSteelCertificate:\n"
+            f"\tSteel Plant: {self.steel_plant}\n"
+            f"\tSpecification: {self.specification.value}\n"
+            f"\tThickness: {self.thickness.value}\n"
+            f"\tChemical Elements: {chemical_element_str}\n"
+            f"\tSerial Numbers: {self.serial_numbers.value}\n"
+            f"\tSteel Plates:\n{steel_plates_str}"
+        )
+
+
+class Limit(metaclass=ABCMeta):
+    @abstractmethod
+    def verify(self, value) -> Tuple[bool, str]:
+        pass
+
+    @abstractmethod
+    def get_element(self, certificate: Certificate, steel_plate_index: int):
+        pass
 
 
 @unique
@@ -10,6 +69,12 @@ class TableSearchType(Enum):
     SPLIT_LINE_BREAK_START = 2  # split by line break (\n) and check if the first element matches the keyword
     REMOVE_LINE_BREAK_CONTAIN = 3  # remove all line breaks (\n) and check if contains the keyword
     SPLIT_LINE_BREAK_ALL_DIGIT = 4  # split by line break (\n) and check if all the elements are integer.
+
+
+@unique
+class Direction(Enum):
+    TRANSVERSE = 'Transverse'  # 横向
+    LONGITUDINAL = 'Longitudinal'  # 纵向
 
 
 class CommonUtils:

@@ -1,42 +1,36 @@
 # import fire
 import os
-import shutil
+# import shutil
 
-import pdfplumber
 from common_utils import TableSearchType, CommonUtils
 from certificate_verification import ChemicalCompositionLimitsForHighStrengthSteel, HullStructureSteelPlateLimits, \
     MechanicalLimits
-from certificate_element import SteelPlant, Specification, Thickness, SerialNumber, SteelPlate, ChemicalElement, \
+from certificate_element import SteelPlant, Specification, Thickness, SerialNumbers, SteelPlate, ChemicalElementName, \
     ChemicalElementValue, DeliveryCondition, YieldStrength, TensileStrength, Elongation, PositionDirectionImpact, \
-    Temperature, ImpactEnergy
+    Temperature, ImpactEnergy, str
 
 
 class SteelInspecitionCertificate:
 
-    def __init__(self, path):
-        # Read PDF contents
-        self.pdf_path = path
-        self.pdf = pdfplumber.open(path)
-        self.page = self.pdf.pages[0]  # Always has only one page
-        self.tables = self.page.extract_tables()
-        self.content = self.page.extract_text()
+    def __init__(self, pdf_path):
+        self.pdf_elements = str(pdf_path)
 
         self.steel_plant = None
         self.specification = None
         self.thickness = None
         self.serial_numbers = None
-        self.plates = None
+        self.steel_plates = None
         self.chemical_elements = None
 
-    def extract_quality_date(self):
+    def extract_quality_data(self):
         # Extract quality data
         self.steel_plant = self.extract_steel_plant()
         self.specification = self.extract_specification()
         self.thickness = self.extract_thickness()
         self.serial_numbers = self.extract_serial_numbers()
-        self.plates = []
+        self.steel_plates = []
         for serial_number in self.serial_numbers.value:
-            self.plates.append(SteelPlate(serial_number))
+            self.steel_plates.append(SteelPlate(serial_number))
         self.chemical_elements = None
         self.extract_chemical_composition()
         self.extract_delivery_condition()
@@ -48,10 +42,7 @@ class SteelInspecitionCertificate:
         self.extract_impact_energy()
 
     def __del__(self):
-        self.pdf.close()
-
-    def close_pdf(self):
-        self.pdf.close()
+        self.pdf_elements.pdf.close()
 
     # def page_info(self):
     #     print(self.page.page_number)
@@ -60,7 +51,12 @@ class SteelInspecitionCertificate:
 
     def extract_steel_plant(self):
         if "No.885 Fujin ROAD, BAOSHAN DISTRICT".replace(" ", "").upper() in self.content.replace(" ", "").upper():
-            return SteelPlant('BAOSHAN IRON & STEEL CO., LTD.')
+            return SteelPlant(
+                table_index=None,
+                x_coordinate=None,
+                y_coordinate=None,
+                value='BAOSHAN IRON & STEEL CO., LTD.'
+            )
 
     def extract_specification(self):
         # Hardcode here, the specification information is always in the first table:
@@ -128,10 +124,18 @@ class SteelInspecitionCertificate:
             )
         x_coordinate = coordinates[0]
         y_coordinate = coordinates[1]
-        serial_numbers = [number.strip() for number in
-                          table[x_coordinate][y_coordinate].split('\n')]
-        return SerialNumber(table_index=table_index, x_coordinate=x_coordinate, y_coordinate=y_coordinate,
-                            value=serial_numbers)
+        serial_numbers = []
+        for number_str in table[x_coordinate][y_coordinate].split('\n'):
+            number_str_stripped = number_str.strip()
+            if number_str_stripped.isdigit():
+                serial_numbers.append(int(number_str_stripped))
+            else:
+                raise ValueError(
+                    f"The No. value {number_str_stripped} extracted is not a number in the given "
+                    f"PDF {self.pdf_path}."
+                )
+        return SerialNumbers(table_index=table_index, x_coordinate=x_coordinate, y_coordinate=y_coordinate,
+                             value=serial_numbers)
 
     def extract_thickness(self):
         # Hard code: the number is always in the second table
@@ -160,7 +164,10 @@ class SteelInspecitionCertificate:
             table_index=table_index,
             x_coordinate=x_coordinate,
             y_coordinate=y_coordinate,
-            value=thickness_value
+            value=thickness_value,
+            index=None,
+            valid_flag=True,
+            message=None
         )
 
     def extract_chemical_composition(self):
@@ -224,7 +231,7 @@ class SteelInspecitionCertificate:
                             )
                     x_coordinate = start_row_index + row_index * 2
                     y_coordinate = start_col_index + col_index
-                    chemical_elements[chemical_element_name] = ChemicalElement(
+                    chemical_elements[chemical_element_name] = ChemicalElementName(
                         table_index=table_index,
                         x_coordinate=x_coordinate,
                         y_coordinate=y_coordinate,
@@ -259,12 +266,14 @@ class SteelInspecitionCertificate:
                         f"The value {chemical_element_value} extracted for chemical element {_element} is not a digit! "
                         f"The given PDF is {self.pdf_path}"
                     )
-                self.plates[plate_index].chemical_compositions[_element] = ChemicalElementValue(
+                self.steel_plates[plate_index].chemical_compositions[_element] = ChemicalElementValue(
                     table_index=table_index,
                     x_coordinate=x_coordinate,
                     y_coordinate=y_coordinate,
                     value=chemical_element_value,
                     index=idx,
+                    valid_flag=True,
+                    message=None,
                     element=_element,
                     precision=self.chemical_elements[_element].precision
                 )
@@ -326,7 +335,7 @@ class SteelInspecitionCertificate:
             #     f"delivery condition value: {delivery_condition_value} for plate No. "
             #     f"{self.numbers['numbers'][plate_index]}."
             # )
-            self.plates[plate_index].delivery_condition = DeliveryCondition(
+            self.steel_plates[plate_index].delivery_condition = DeliveryCondition(
                 table_index=table_index,
                 x_coordinate=x_coordinate,
                 y_coordinate=y_coordinate,
@@ -380,12 +389,14 @@ class SteelInspecitionCertificate:
                     f"{self.serial_numbers.value[plate_index]} is not a number in the given "
                     f"PDF {self.pdf_path}"
                 )
-            self.plates[plate_index].yield_strength = YieldStrength(
+            self.steel_plates[plate_index].yield_strength = YieldStrength(
                 table_index=table_index,
                 x_coordinate=x_coordinate,
                 y_coordinate=y_coordinate,
+                value=yield_strength_value,
                 index=plate_index,
-                value=yield_strength_value
+                valid_flag=True,
+                message=None
             )
 
     def extract_tensile_strength(self):
@@ -434,12 +445,14 @@ class SteelInspecitionCertificate:
                     f"{self.serial_numbers.value[plate_index]} is not a number in the given "
                     f"PDF {self.pdf_path}"
                 )
-            self.plates[plate_index].tensile_strength = TensileStrength(
+            self.steel_plates[plate_index].tensile_strength = TensileStrength(
                 table_index=table_index,
                 x_coordinate=x_coordinate,
                 y_coordinate=y_coordinate,
+                value=tensile_strength_value,
                 index=plate_index,
-                value=tensile_strength_value
+                valid_flag=True,
+                message=None
             )
 
     def extract_elongation(self):
@@ -488,12 +501,14 @@ class SteelInspecitionCertificate:
                     f"{self.serial_numbers.value[plate_index]} is not a number in the given "
                     f"PDF {self.pdf_path}"
                 )
-            self.plates[plate_index].elongation = Elongation(
+            self.steel_plates[plate_index].elongation = Elongation(
                 table_index=table_index,
                 x_coordinate=x_coordinate,
                 y_coordinate=y_coordinate,
+                value=elongation_value,
                 index=plate_index,
-                value=elongation_value
+                valid_flag=True,
+                message=None
             )
 
     def extract_position_direction_impact(self):
@@ -542,7 +557,7 @@ class SteelInspecitionCertificate:
                     f"{self.serial_numbers.value[plate_index]} contains invalid character other than alphabet and "
                     f"number in the given PDF {self.pdf_path}"
                 )
-            self.plates[plate_index].position_direction_impact = PositionDirectionImpact(
+            self.steel_plates[plate_index].position_direction_impact = PositionDirectionImpact(
                 table_index=table_index,
                 x_coordinate=x_coordinate,
                 y_coordinate=y_coordinate,
@@ -597,12 +612,14 @@ class SteelInspecitionCertificate:
                     f"{self.serial_numbers.value[plate_index]} is not a number "
                     f"in the given PDF {self.pdf_path}"
                 )
-            self.plates[plate_index].temperature = Temperature(
+            self.steel_plates[plate_index].temperature = Temperature(
                 table_index=table_index,
                 x_coordinate=x_coordinate,
                 y_coordinate=y_coordinate,
+                value=temperature_value,
                 index=plate_index,
-                value=temperature_value
+                valid_flag=True,
+                message=None
             )
 
     def extract_impact_energy(self):
@@ -654,14 +671,16 @@ class SteelInspecitionCertificate:
                         f"{self.serial_numbers.value[plate_index]} is not a number "
                         f"in the given PDF {self.pdf_path}"
                     )
-                self.plates[plate_index].impact_energy_list.append(
+                self.steel_plates[plate_index].impact_energy_list.append(
                     ImpactEnergy(
                         table_index=table_index,
                         x_coordinate=x_coordinate,
                         y_coordinate=y_coordinate,
+                        value=impact_energy_value,
                         index=plate_index,
+                        valid_flag=True,
+                        message=None,
                         test_number=impact_energy_index + 1,
-                        value=impact_energy_value
                     )
                 )
 
@@ -685,7 +704,7 @@ class SteelInspecitionCertificate:
             _valid_flag = ChemicalCompositionLimitsForHighStrengthSteel.get_singleton().verify(
                 specification=self.specification.value,
                 thickness=self.thickness.value,
-                chemical_compositions=self.plates[plate_index].chemical_compositions,
+                chemical_compositions=self.steel_plates[plate_index].chemical_compositions,
                 pdf_path=self.pdf_path
             )
             all_pass_flag = all_pass_flag and _valid_flag
@@ -702,9 +721,9 @@ class SteelInspecitionCertificate:
             )
             _valid_flag = hull_structure_steel_plate_limits_for_this_steel_plant.verify(
                 specification=self.specification.value,
-                delivery_condition=self.plates[plate_index].delivery_condition.value,
+                delivery_condition=self.steel_plates[plate_index].delivery_condition.value,
                 thickness=self.thickness,
-                chemical_compositions=self.plates[plate_index].chemical_compositions,
+                chemical_compositions=self.steel_plates[plate_index].chemical_compositions,
                 pdf_path=self.pdf_path
             )
             all_pass_flag = all_pass_flag and _valid_flag
@@ -722,12 +741,12 @@ class SteelInspecitionCertificate:
                 grade=self.specification.value,
                 thickness=self.thickness.value,
                 direction=CommonUtils.translate_to_vl_direction(
-                    self.plates[plate_index].position_direction_impact.value),
-                yield_strength=self.plates[plate_index].yield_strength,
-                tensile_strength=self.plates[plate_index].tensile_strength,
-                elongation=self.plates[plate_index].elongation,
-                temperature=self.plates[plate_index].temperature,
-                impact_energy_list=self.plates[plate_index].impact_energy_list
+                    self.steel_plates[plate_index].position_direction_impact.value),
+                yield_strength=self.steel_plates[plate_index].yield_strength,
+                tensile_strength=self.steel_plates[plate_index].tensile_strength,
+                elongation=self.steel_plates[plate_index].elongation,
+                temperature=self.steel_plates[plate_index].temperature,
+                impact_energy_list=self.steel_plates[plate_index].impact_energy_list
             )
             all_pass_flag = all_pass_flag and _valid_flag
         return all_pass_flag
@@ -783,7 +802,7 @@ if __name__ == '__main__':
         certificate = None
         try:
             certificate = SteelInspecitionCertificate(file)
-            certificate.extract_quality_date()
+            certificate.extract_quality_data()
             valid_flag = certificate.verify()
             print(f"\n\nCertificate Content:\n")
             print(certificate.steel_plant)
@@ -793,7 +812,7 @@ if __name__ == '__main__':
             print(f"Chemical Elements:")
             for element in certificate.chemical_elements:
                 print(f"\t{certificate.chemical_elements[element]}")
-            print(certificate.plates)
+            print(certificate.steel_plates)
             if valid_flag:
                 certificate.close_pdf()
                 print(f"Verification Pass!")
