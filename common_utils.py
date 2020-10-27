@@ -31,6 +31,7 @@ class SingletonABCMeta(ABCMeta):
 
 @dataclass
 class Certificate(metaclass=ABCMeta):
+    file_path: str
     steel_plant: str
     specification: Specification
     thickness: Thickness
@@ -44,6 +45,7 @@ class Certificate(metaclass=ABCMeta):
         steel_plates_str = '\n'.join([str(steel_plate) for steel_plate in self.steel_plates])
         return (
             f"BaoSteelCertificate:\n"
+            f"\tFile Path: {self.file_path}\n"
             f"\tSteel Plant: {self.steel_plant}\n"
             f"\tSpecification: {self.specification.value}\n"
             f"\tThickness: {self.thickness.value}\n"
@@ -80,7 +82,7 @@ class Direction(Enum):
 class CommonUtils:
 
     chemical_elements_table = [
-        'C', 'Si', 'Mn', 'P', 'S', 'Cr', 'Mo', 'Ni', 'Cu', 'Al', 'Nb', 'V', 'Ti', 'N', 'Ceq', 'Als', 'Alt'
+        'C', 'Si', 'Mn', 'P', 'S', 'Cu', 'Cr', 'Ni', 'Mo', 'Ceq', 'Als', 'Alt', 'Nb', 'Ti', 'V'
     ]
 
     @staticmethod

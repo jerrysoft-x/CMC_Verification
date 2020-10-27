@@ -64,6 +64,11 @@ class PositionDirectionImpact(CertificateElementInPlate):
 
 
 @dataclass
+class PlateNo(CertificateElementInPlate):
+    pass
+
+
+@dataclass
 class Thickness(CertificateElementToVerify):
     value: float
 
@@ -117,6 +122,7 @@ class SteelPlate:
 
     def __init__(self, serial_number: int):
         self.serial_number: int = serial_number
+        self.plate_no: Optional[PlateNo] = None
         self.mass: Optional[Mass] = None
         self.chemical_compositions: Dict[str, ChemicalElementValue] = dict()
         self.yield_strength: Optional[YieldStrength] = None
@@ -140,6 +146,7 @@ class SteelPlate:
         return (
             # f"\tSteel Plate:\n"
             f"\t\tSerial Number: {self.serial_number}\n"
+            f"\t\tPlate No.: {self.plate_no}\n"
             f"\t\tMass: {self.mass.value}\n"
             f"\t\tChemical Composition:\n"
             f"\t\t\t{chemical_str}\n"

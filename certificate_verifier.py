@@ -1,11 +1,14 @@
 import os
 import shutil
-import pickle
+# import pickle
+from typing import List, Tuple
+
 from certificate_element import PDFFile, CertificateElementToVerify, ChemicalElementValue
 from certificate_factory import BaoSteelCertificateFactory, CertificateFactory
 from certificate_verification import RuleMaker
 from common_utils import Certificate
-from output_excel import output_excel
+from output_utilities.output_excel import write_single_certificate_to_excel, write_multiple_certificates_to_excel, \
+    write_certificates_with_exception
 
 
 class CertificateFactoryRegister:
@@ -27,7 +30,6 @@ class CertificateVerifier:
     @staticmethod
     def verify(cert: Certificate, rule_maker: RuleMaker) -> bool:
         all_valid_flag = True
-        # TODO for each single plate generate a list of limits respectively and then verify them.
         for steel_plate_index in range(len(cert.serial_numbers)):
             print(f"Checking Steel Plate No. {cert.steel_plates[steel_plate_index].serial_number}:")
             limit_list = rule_maker.get_rules(cert, steel_plate_index)
@@ -120,6 +122,9 @@ if __name__ == '__main__':
         os.mkdir('FAIL')
     if 'EXCEPTION' not in subdirectories:
         os.mkdir('EXCEPTION')
+
+    passed_certificates: List[Certificate] = []
+    certificates_with_exception: List[Tuple[str, str]] = []
     # Iterate the pdf files, read each pdf file and verify, and distribute the files to respective destination folders.
     for file in pdf_files:
         print(f"\n\nProcessing file {file} ...")
@@ -137,19 +142,26 @@ if __name__ == '__main__':
                 shutil.copy(file, 'PASS')
                 # os.remove is used instead of shutil.move because of compatibility problem with pyinstaller
                 os.remove(file)
-                output_excel(certificate, file, os.path.join('PASS', file.replace('.pdf', '.xlsx')))
+                passed_certificates.append(certificate)
             else:
                 print(f"Verification Fail!")
                 shutil.copy(file, 'FAIL')
                 # os.remove is used instead of shutil.move because of compatibility problem with pyinstaller
                 os.remove(file)
-                output_excel(certificate, file, os.path.join('FAIL', file.replace('.pdf', '.xlsx')))
+                write_single_certificate_to_excel(
+                    certificate=certificate,
+                    sheet_name='FAIL',
+                    output_file=os.path.join('FAIL', file.replace('.pdf', '.xlsx'))
+                )
         except Exception as e:
             print(f"Exception occurred during reading the PDF file!")
             print(e)
             shutil.copy(file, 'EXCEPTION')
             # os.remove is used instead of shutil.move because of compatibility problem with pyinstaller
             os.remove(file)
-            with open(os.path.join('EXCEPTION', file.replace('.pdf', '.txt')), 'w') as f:
-                f.write(str(e))
+            # with open(os.path.join('EXCEPTION', file.replace('.pdf', '.txt')), 'w') as f:
+            #     f.write(str(e))
+            certificates_with_exception.append((file, str(e)))
+    write_multiple_certificates_to_excel(passed_certificates)
+    write_certificates_with_exception(certificates_with_exception)
     # input(f"Click enter or close button to finish...")

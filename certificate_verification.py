@@ -849,7 +849,7 @@ class RuleMaker(metaclass=SingletonABCMeta):
             limit_list.append(ElongationLimit(minimum=22))
             if thickness.value <= 25:
                 pass
-            if 25 < thickness.value <= 50:
+            elif 25 < thickness.value <= 50:
                 limit_list.append(TemperatureLimit(unique_value=0))
                 if impact_test_direction == Direction.LONGITUDINAL:
                     limit_list.append(ImpactEnergyLimit(minimum=27, test_number='1'))

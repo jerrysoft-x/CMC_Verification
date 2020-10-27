@@ -2,7 +2,7 @@ from typing import List, Dict, Tuple, Optional
 from abc import abstractmethod
 from certificate_element import PDFFile, Specification, Thickness, SerialNumbers, SteelPlate, ChemicalElementName, \
     DeliveryCondition, Mass, ChemicalElementValue, YieldStrength, TensileStrength, Elongation, \
-    PositionDirectionImpact, Temperature, ImpactEnergy
+    PositionDirectionImpact, Temperature, ImpactEnergy, PlateNo
 from dataclasses import dataclass
 
 # from certificate_verification import BaoSteelRuleMaker, RuleMaker
@@ -63,6 +63,7 @@ class BaoSteelCertificateFactory(CertificateFactory):
             non_test_lot_no_map=non_test_lot_no_map
         )
         certificate = BaoSteelCertificate(
+            file_path=pdf_file.pdf_path,
             steel_plant=pdf_file.steel_plant,
             specification=specification,
             thickness=thickness,
@@ -126,6 +127,12 @@ class BaoSteelCertificateFactory(CertificateFactory):
             serial_numbers=serial_numbers,
             steel_plates=steel_plates
         )
+        BaoSteelCertificateFactory.extract_plate_no(
+            pdf_file=pdf_file,
+            serial_numbers=serial_numbers,
+            steel_plates=steel_plates,
+            non_test_lot_no_map=non_test_lot_no_map
+        )
         BaoSteelCertificateFactory.extract_yield_strength(
             pdf_file=pdf_file,
             serial_numbers=serial_numbers,
@@ -156,7 +163,7 @@ class BaoSteelCertificateFactory(CertificateFactory):
                 serial_numbers=serial_numbers,
                 steel_plates=steel_plates,
                 non_test_lot_no_map=non_test_lot_no_map,
-                impact_test_count=impact_test_count,
+                # impact_test_count=impact_test_count,
                 impact_test_map=impact_test_map
             )
             BaoSteelCertificateFactory.extract_temperature(
@@ -164,7 +171,7 @@ class BaoSteelCertificateFactory(CertificateFactory):
                 serial_numbers=serial_numbers,
                 steel_plates=steel_plates,
                 non_test_lot_no_map=non_test_lot_no_map,
-                impact_test_count=impact_test_count,
+                # impact_test_count=impact_test_count,
                 impact_test_map=impact_test_map
             )
             BaoSteelCertificateFactory.extract_impact_energy(
@@ -172,7 +179,7 @@ class BaoSteelCertificateFactory(CertificateFactory):
                 serial_numbers=serial_numbers,
                 steel_plates=steel_plates,
                 non_test_lot_no_map=non_test_lot_no_map,
-                impact_test_count=impact_test_count,
+                # impact_test_count=impact_test_count,
                 impact_test_map=impact_test_map
             )
         return steel_plates
@@ -183,7 +190,7 @@ class BaoSteelCertificateFactory(CertificateFactory):
             serial_numbers: SerialNumbers,
             steel_plates: List[SteelPlate],
             non_test_lot_no_map: Dict[int, int],
-            impact_test_count: int,
+            # impact_test_count: int,
             impact_test_map: Dict[int, bool]
     ):
         # tensile strength data is always in the second table
@@ -280,7 +287,7 @@ class BaoSteelCertificateFactory(CertificateFactory):
             serial_numbers: SerialNumbers,
             steel_plates: List[SteelPlate],
             non_test_lot_no_map: Dict[int, int],
-            impact_test_count: int,
+            # impact_test_count: int,
             impact_test_map: Dict[int, bool],
     ):
         # Firstly, hardcode that tensile strength data is always in the second table
@@ -354,7 +361,7 @@ class BaoSteelCertificateFactory(CertificateFactory):
         serial_numbers: SerialNumbers,
         steel_plates: List[SteelPlate],
         non_test_lot_no_map: Dict[int, int],
-        impact_test_count: int,
+        # impact_test_count: int,
         impact_test_map: Dict[int, bool]
     ):
         # Firstly, hardcode that tensile strength data is always in the second table
@@ -470,6 +477,60 @@ class BaoSteelCertificateFactory(CertificateFactory):
                         test_number=y_coordinates[y_coordinate],
                     )
                 )
+
+    @staticmethod
+    def extract_plate_no(
+        pdf_file: PDFFile,
+        serial_numbers: SerialNumbers,
+        steel_plates: List[SteelPlate],
+        non_test_lot_no_map: Dict[int, int]
+    ):
+        # Firstly, hardcode that yield strength data is always in the second table
+        table_index = 1
+        table = pdf_file.tables[table_index]
+
+        # Search the title PLATE NO. to locate the y coordinate
+        coordinates = CommonUtils.search_table(table, 'PLATENO.', TableSearchType.REMOVE_LINE_BREAK_CONTAIN)
+        if coordinates is None:
+            raise ValueError(
+                f"Could not find PLATE NO. title in the given PDF {pdf_file.pdf_path}."
+            )
+        y_coordinate = coordinates[1]
+        # x coordinate is the same of the serial numbers
+        x_coordinate = serial_numbers.x_coordinate
+
+        cell = table[x_coordinate][y_coordinate]
+
+        cell_line_count = len(cell.split('\n'))
+        if cell_line_count >= len(serial_numbers):
+            pass
+        else:
+            raise ValueError(
+                f"There are {cell_line_count} lines in the plate no. cell, less than the serial numbers count "
+                f"{len(serial_numbers)} plates in the given PDF {pdf_file.pdf_path}"
+            )
+        plate_no_cell_lines = cell.split('\n')
+
+        # Start extracting the plate no value for each plate
+        for plate_index in range(len(serial_numbers)):
+            if len(plate_no_cell_lines) > len(serial_numbers):
+                plate_no_value = plate_no_cell_lines[non_test_lot_no_map[plate_index]]
+            else:
+                plate_no_value = plate_no_cell_lines[plate_index]
+            if plate_no_value is not None and len(plate_no_value.strip()) > 0:
+                plate_no_value = plate_no_value.strip()
+            else:
+                raise ValueError(
+                    f"Could not find the Plate No. value for plate No. "
+                    f"{serial_numbers[plate_index]} in the given PDF {pdf_file.pdf_path}"
+                )
+            steel_plates[plate_index].plate_no = PlateNo(
+                table_index=table_index,
+                x_coordinate=x_coordinate,
+                y_coordinate=y_coordinate,
+                value=plate_no_value,
+                index=plate_index
+            )
 
     @staticmethod
     def extract_yield_strength(
