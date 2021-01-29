@@ -6,8 +6,8 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.comments import Comment
 from openpyxl.worksheet.worksheet import Worksheet
 
-from certificate_element import CertificateElementToVerify, CertificateElementInPlate, ChemicalElementValue
-from common_utils import Certificate, CommonUtils
+from common import Certificate, CommonUtils, CertificateElementToVerify, CertificateElementInPlate, \
+    ChemicalElementValue, PositionDirectionImpact
 
 normal_font = Font(bold=False)
 bold_font = Font(bold=True)
@@ -49,6 +49,8 @@ def write_value(sheet, row_cursor: int, column_cursor: int, element: Union[Certi
     else:
         if isinstance(element, ChemicalElementValue):
             cell.value = element.calculated_value
+        elif isinstance(element, PositionDirectionImpact):
+            cell.value = str(element.value)
         else:
             cell.value = element.value
         if isinstance(element, CertificateElementToVerify) and not element.valid_flag:
@@ -70,16 +72,21 @@ def initialize_workbook(sheet_name: str) -> Tuple[Workbook, Worksheet, int, int]
                       end_column=column_cursor + 2)
     write_title(sheet, row_cursor := row_cursor + 1, column_cursor, 'FILE NAME')
     write_title(sheet, row_cursor, column_cursor := column_cursor + 1, 'STEEL PLANT')
-    write_title(sheet, row_cursor, column_cursor := column_cursor + 1, 'SPECIFICATION')
+    write_title(sheet, row_cursor, column_cursor := column_cursor + 1, 'CERTIFICATE NO.')
     # [SECTION] STEEL PLATES
     write_title(sheet, row_cursor := row_cursor - 1, column_cursor := column_cursor + 1, 'STEEL PLATES')
-    write_title(sheet, row_cursor := row_cursor + 1, column_cursor, 'PLATE NO.')
+    sheet.merge_cells(start_row=row_cursor, end_row=row_cursor, start_column=column_cursor,
+                      end_column=column_cursor + 1)
+    write_title(sheet, row_cursor := row_cursor + 1, column_cursor, 'BATCH NO.')
+    write_title(sheet, row_cursor, column_cursor := column_cursor + 1, 'PLATE NO.')
     # [SECTION] MATERIAL DESCRIPTION
     write_title(sheet, row_cursor := row_cursor - 1, column_cursor := column_cursor + 1, 'MATERIAL DESCRIPTION')
     sheet.merge_cells(start_row=row_cursor, end_row=row_cursor, start_column=column_cursor,
-                      end_column=column_cursor + 1)
-    write_title(sheet, row_cursor := row_cursor + 1, column_cursor, 'THICKNESS')
-    write_title(sheet, row_cursor, column_cursor := column_cursor + 1, 'MASS(kg)')
+                      end_column=column_cursor + 3)
+    write_title(sheet, row_cursor := row_cursor + 1, column_cursor, 'SPECIFICATION')
+    write_title(sheet, row_cursor, column_cursor := column_cursor + 1, 'THICKNESS')
+    write_title(sheet, row_cursor, column_cursor := column_cursor + 1, 'QUANTITY')
+    write_title(sheet, row_cursor, column_cursor := column_cursor + 1, 'MASS(ton)')
     # [SECTION] CHEMICAL COMPOSITION
     write_title(sheet, row_cursor := row_cursor - 1, column_cursor := column_cursor + 1, 'CHEMICAL COMPOSITION')
     sheet.merge_cells(
@@ -140,14 +147,20 @@ def write_single_certificate(certificate: Certificate, sheet, row_cursor: int) -
         write_value(sheet, row_cursor + plate_index, column_cursor, certificate.file_path)
         #   [CELL] STEEL PLANT
         write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, certificate.steel_plant)
-        #   [CELL] SPECIFICATION
-        write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, certificate.specification)
+        #   [CELL] CERTIFICATE NO
+        write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, certificate.certificate_no)
         # [SECTION] STEEL PLATES
+        #   [CELL] BATCH NO.
+        write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, steel_plate.batch_no)
         #   [CELL] PLATE NO.
         write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, steel_plate.plate_no)
         # [SECTION] MATERIAL DESCRIPTION
+        #   [CELL] SPECIFICATION
+        write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, steel_plate.specification)
         #   [CELL] THICKNESS
-        write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, certificate.thickness)
+        write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, steel_plate.thickness)
+        #   [CELL] QUANTITY
+        write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, steel_plate.quantity)
         #   [CELL] MASS(kg)
         write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, steel_plate.mass)
         # [SECTION] CHEMICAL COMPOSITION
@@ -173,16 +186,16 @@ def write_single_certificate(certificate: Certificate, sheet, row_cursor: int) -
         write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1, steel_plate.temperature)
         #   [CELL] IMPACT ENERGY 1
         write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1,
-                    steel_plate.impact_energy_list[0])
+                    steel_plate.impact_energy_list[0] if len(steel_plate.impact_energy_list) == 4 else '')
         #   [CELL] IMPACT ENERGY 2
         write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1,
-                    steel_plate.impact_energy_list[1])
+                    steel_plate.impact_energy_list[1] if len(steel_plate.impact_energy_list) == 4 else '')
         #   [CELL] IMPACT ENERGY 3
         write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1,
-                    steel_plate.impact_energy_list[2])
+                    steel_plate.impact_energy_list[2] if len(steel_plate.impact_energy_list) == 4 else '')
         #   [CELL] IMPACT ENERGY AVE.
         write_value(sheet, row_cursor + plate_index, column_cursor := column_cursor + 1,
-                    steel_plate.impact_energy_list[3])
+                    steel_plate.impact_energy_list[3] if len(steel_plate.impact_energy_list) == 4 else '')
         # [SECTION] DELIVERY CONDITION
         write_value(sheet, row_cursor + plate_index, column_cursor + 1, steel_plate.delivery_condition)
 
